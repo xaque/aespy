@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import numpy as np
-import copy
 
 
 
@@ -38,8 +37,7 @@ Sbox = [
     [ 0xba, 0x78, 0x25, 0x2e, 0x1c, 0xa6, 0xb4, 0xc6, 0xe8, 0xdd, 0x74, 0x1f, 0x4b, 0xbd, 0x8b, 0x8a ] ,
     [ 0x70, 0x3e, 0xb5, 0x66, 0x48, 0x03, 0xf6, 0x0e, 0x61, 0x35, 0x57, 0xb9, 0x86, 0xc1, 0x1d, 0x9e ] ,
     [ 0xe1, 0xf8, 0x98, 0x11, 0x69, 0xd9, 0x8e, 0x94, 0x9b, 0x1e, 0x87, 0xe9, 0xce, 0x55, 0x28, 0xdf ] ,
-    [ 0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16 ]
-    ]
+    [ 0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16 ] ]
 
 InvSbox = [
     [ 0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb ] ,
@@ -57,8 +55,7 @@ InvSbox = [
     [ 0x1f, 0xdd, 0xa8, 0x33, 0x88, 0x07, 0xc7, 0x31, 0xb1, 0x12, 0x10, 0x59, 0x27, 0x80, 0xec, 0x5f ] ,
     [ 0x60, 0x51, 0x7f, 0xa9, 0x19, 0xb5, 0x4a, 0x0d, 0x2d, 0xe5, 0x7a, 0x9f, 0x93, 0xc9, 0x9c, 0xef ] ,
     [ 0xa0, 0xe0, 0x3b, 0x4d, 0xae, 0x2a, 0xf5, 0xb0, 0xc8, 0xeb, 0xbb, 0x3c, 0x83, 0x53, 0x99, 0x61 ] ,
-    [ 0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d ]
-    ]
+    [ 0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d ] ]
 
 
 
@@ -89,58 +86,40 @@ def xtime(num):
 ### Key expansion ###
 
 def expandKey(key):
-    np.set_printoptions(formatter={'int':hex})
-    #print(key)
     expanded = []
+
     # Convert key byte array into array of words
     currentWord = np.int32(0)
     for i in range(len(key)):
         currentWord ^= (key[i] & 0x000000ff)
-        #print(hex(currentWord))
         if (i % 4) == 3:
-            #print("word: ", hex(currentWord))
             expanded.append(currentWord)
             currentWord = np.int32(0)
         currentWord <<= 8
-    
-    #
-    #print(expanded)
-    #print([hex(no) for no in expanded])
+
+    # Determine variables based on key size
     divider = int(len(key) / 4)
     rounds = int(7 + (len(key) / 4))
     expandedSize = rounds * 4
     expandedI = len(expanded)
+
+    # Expand keys by column
     for i in range(expandedI, expandedSize):
         nextWord = np.int32(0)
         if (i % divider == 0):
-            #print(i)
-            # First column of round key
             nextWord = expanded[i - 1]
-            #print(hex(nextWord))
-            nextWord = rrotWord(nextWord)
-            #print(hex(nextWord))
-            nextWord = ssubWord(nextWord)
-            #print(hex(nextWord))
-            nextWord ^= expanded[i - divider] ^ Rcon[int(i / divider)]#TODO not sure if this is right for larger keys
-            #print(hex(nextWord))
-            #print()
+            nextWord = rotWord(nextWord)
+            nextWord = subWord(nextWord)
+            nextWord ^= expanded[i - divider] ^ Rcon[int(i / divider)]
         else:
-            # Other columns
             nextWord = expanded[i - 1]
             if divider == 8 and (i-4) % divider == 0:
-                nextWord = ssubWord(nextWord)
+                nextWord = subWord(nextWord)
             nextWord ^= expanded[i - divider]
         expanded.append(nextWord)
-    #print(len(expanded))
-    #print([hex(no) for no in expanded])
-    #for i in range(len(expanded)):
-    #    if i % 4 == 0:
-    #        print()
-    #    print(hex(expanded[i]), "\t", end='')
-    #print()
     return expanded
 
-def rrotWord(word):
+def rotWord(word):
     tmp = word & 0xff000000
     tmp >>= 24
     tmp &= 0xff
@@ -148,7 +127,7 @@ def rrotWord(word):
     newWord &= 0xffffff00
     return newWord | tmp
 
-def ssubWord(word):
+def subWord(word):
     b1 = (0xff000000 & word) >> 24
     b2 = (0x00ff0000 & word) >> 16
     b3 = (0x0000ff00 & word) >> 8
@@ -160,44 +139,7 @@ def ssubWord(word):
     b1 <<= 24
     b2 <<= 16
     b3 <<= 8
-    #just in case
-    #b1 &= 0xff000000
-    #b2 &= 0x00ff0000
-    #b3 &= 0x0000ff00
-    #b4 &= 0x000000ff
     return b1 | b2 | b3 | b4
-
-def nextRoundKey(key, roundi=1):
-    keyCopy = key.copy().transpose()
-    nextKey = np.zeros([4, 4], dtype=np.int8)
-    col0 = keyCopy[3]
-    col0 = rotWord(col0)
-    col0 = subWord(col0)
-    col0 = colAdd(col0, keyCopy[0])
-    rcon = Rcon[roundi]
-    rcon = (rcon >> 24) & 0xff
-    col0[0] ^= rcon
-    nextKey[0] = col0
-    col1 = colAdd(col0, keyCopy[1])
-    nextKey[1] = col1
-    col2 = colAdd(col1, keyCopy[2])
-    nextKey[2] = col2
-    keyCopy = key.transpose()
-    col3 = colAdd(col2, keyCopy[3])
-    nextKey[3] = col3
-    return nextKey.transpose()
-
-def rotWord(word):
-    tmp = word[0]
-    for j in range(len(word)-1):
-        word[j] = word[j+1]
-    word[len(word)-1] = tmp
-    return word
-
-def subWord(word):
-    for i in range(len(word)):
-        word[i] = subByte(word[i])
-    return word
 
 
 
@@ -270,19 +212,16 @@ def subByte(byte, sbox=Sbox):
 
 def rotateRow(row, n):
     for i in range(n):
-        row = rotWord(row)
+        tmp = row[0]
+        for j in range(len(row)-1):
+            row[j] = row[j+1]
+        row[len(row)-1] = tmp     
     return row
-
-def colAdd(col1, col2):
-    for i in range(0, len(col1)):
-        col1[i] ^= col2[i]
-    return col1
 
 def getRoundKey(expandedKey, n):
     key = np.zeros([4, 4], dtype=np.int8)
     for i in range(4):
         word = expandedKey[(n * 4) + i]
-        #print(hex(word))
         for j in range(4):
             byte = word << (j*8)
             mask = 0xff000000
@@ -290,7 +229,6 @@ def getRoundKey(expandedKey, n):
             byte >>= 24
             byte &= 0xff
             key[j][i] = byte
-            #print(hex(byte))
     return key
 
 
@@ -304,7 +242,8 @@ def cipher(inp, k):
         for j in range(4):
             state[i][j] = inp[i*4 + j]
     state = state.transpose()
-    
+
+    # Expand key
     expandedKey = expandKey(k)
     numMainRounds = int(len(expandedKey) / 4) - 2
     roundNum = 0
@@ -325,8 +264,6 @@ def cipher(inp, k):
     state = subBytes(state)
     state = shiftRows(state)
     state = addRoundKey(state, getRoundKey(expandedKey, roundNum))
-    roundNum += 1
-    print(roundNum)
 
     # Final state to 1d array
     state = state.transpose()
@@ -344,6 +281,7 @@ def invCipher(inp, k):
             state[i][j] = inp[i*4 + j]
     state = state.transpose()
 
+    # Expand key
     expandedKey = expandKey(k)
     numMainRounds = int(len(expandedKey) / 4) - 2
     roundNum = numMainRounds + 1
