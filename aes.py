@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
+import copy
 
 
 ### AES given definitions ###
@@ -84,31 +85,62 @@ def xtime(num):
 
 ### Key expansion ###
 
-def rotWord():
-    pass
+def nextRoundKey(key, roundi=1):
+    keyCopy = key.copy().transpose()
+    nextKey = np.zeros([4, 4], dtype=np.int8)
+    col0 = keyCopy[3]
+    col0 = rotWord(col0)
+    col0 = subWord(col0)
+    col0 = colAdd(col0, keyCopy[0])
+    rcon = Rcon[roundi]
+    rcon = (rcon >> 24) & 0xff
+    col0[0] ^= rcon
+    nextKey[0] = col0
+    col1 = colAdd(col0, keyCopy[1])
+    nextKey[1] = col1
+    col2 = colAdd(col1, keyCopy[2])
+    nextKey[2] = col2
+    #print(keyCopy)
+    #print(col2)
+    keyCopy = key.transpose()
+    col3 = colAdd(col2, keyCopy[3])
+    nextKey[3] = col3
+    return nextKey.transpose()
 
-def subWord():
-    pass
+def rotWord(word):
+    tmp = word[0]
+    for j in range(len(word)-1):
+        word[j] = word[j+1]
+    word[len(word)-1] = tmp
+    return word
+
+def subWord(word):
+    for i in range(len(word)):
+        word[i] = subByte(word[i])
+    return word
 
 
 ### State transformations ###
 
 def addRoundKey(state, key):
+    result = state.copy()
     for i in range(4):
         for j in range(4):
-            state[i][j] ^= key[i][j]
-    return state
+            result[i][j] ^= key[i][j]
+    return result
 
 def subBytes(state):
+    result = state.copy()
     for i in range(4):
         for j in range(4):
-            state[i][j] = subByte(state[i][j])
-    return state
+            result[i][j] = subByte(result[i][j])
+    return result
 
 def shiftRows(state):
+    result = state.copy()
     for i in range(4):
-        state[i] = rotateRow(state[i], i)
-    return state
+        result[i] = rotateRow(result[i], i)
+    return result
 
 def mixColumns(state):
     result = np.zeros([4, 4], dtype=np.int8)
@@ -132,19 +164,17 @@ def subByte(byte):
 
 def rotateRow(row, n):
     for i in range(n):
-        tmp = row[0]
-        for j in range(len(row)-1):
-            row[j] = row[j+1]
-        row[len(row)-1] = tmp
+        row = rotWord(row)
     return row
 
 
 
 
 def colAdd(col1, col2):
+    newcol = col1
     for i in range(0, len(col1)):
-        col1[i] ^= col2[i]
-    return col1
+        newcol[i] = col1[i] ^ col2[i]
+    return newcol
 
 
 
