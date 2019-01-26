@@ -88,6 +88,85 @@ def xtime(num):
 
 ### Key expansion ###
 
+def expandKey(key):
+    np.set_printoptions(formatter={'int':hex})
+    #print(key)
+    expanded = []
+    # Convert key byte array into array of words
+    currentWord = np.int32(0)
+    for i in range(len(key)):
+        currentWord ^= (key[i] & 0x000000ff)
+        #print(hex(currentWord))
+        if (i % 4) == 3:
+            #print("word: ", hex(currentWord))
+            expanded.append(currentWord)
+            currentWord = np.int32(0)
+        currentWord <<= 8
+    
+    #
+    #print(expanded)
+    #print([hex(no) for no in expanded])
+    divider = int(len(key) / 4)
+    rounds = int(7 + (len(key) / 4))
+    expandedSize = rounds * 4
+    expandedI = len(expanded)
+    for i in range(expandedI, expandedSize):
+        nextWord = np.int32(0)
+        if (i % divider == 0):
+            #print(i)
+            # First column of round key
+            nextWord = expanded[i - 1]
+            #print(hex(nextWord))
+            nextWord = rrotWord(nextWord)
+            #print(hex(nextWord))
+            nextWord = ssubWord(nextWord)
+            #print(hex(nextWord))
+            nextWord ^= expanded[i - divider] ^ Rcon[int(i / divider)]#TODO not sure if this is right for larger keys
+            #print(hex(nextWord))
+            #print()
+        else:
+            # Other columns
+            nextWord = expanded[i - 1]
+            if divider == 8 and (i-4) % divider == 0:
+                nextWord = ssubWord(nextWord)
+            nextWord ^= expanded[i - divider]
+        expanded.append(nextWord)
+    #print(len(expanded))
+    #print([hex(no) for no in expanded])
+    #for i in range(len(expanded)):
+    #    if i % 4 == 0:
+    #        print()
+    #    print(hex(expanded[i]), "\t", end='')
+    #print()
+    return expanded
+
+def rrotWord(word):
+    tmp = word & 0xff000000
+    tmp >>= 24
+    tmp &= 0xff
+    newWord = word << 8
+    newWord &= 0xffffff00
+    return newWord | tmp
+
+def ssubWord(word):
+    b1 = (0xff000000 & word) >> 24
+    b2 = (0x00ff0000 & word) >> 16
+    b3 = (0x0000ff00 & word) >> 8
+    b4 = 0x000000ff & word
+    b1 = subByte(b1)
+    b2 = subByte(b2)
+    b3 = subByte(b3)
+    b4 = subByte(b4)
+    b1 <<= 24
+    b2 <<= 16
+    b3 <<= 8
+    #just in case
+    #b1 &= 0xff000000
+    #b2 &= 0x00ff0000
+    #b3 &= 0x0000ff00
+    #b4 &= 0x000000ff
+    return b1 | b2 | b3 | b4
+
 def nextRoundKey(key, roundi=1):
     keyCopy = key.copy().transpose()
     nextKey = np.zeros([4, 4], dtype=np.int8)
