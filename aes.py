@@ -3,6 +3,7 @@ import numpy as np
 import copy
 
 
+
 ### AES given definitions ###
 
 # Rcon[] is 1-based, so the first entry is just a place holder 
@@ -60,6 +61,7 @@ InvSbox = [
     ]
 
 
+
 ### Finite field arithmetic ###
 
 def ffAdd(b1, b2):
@@ -83,6 +85,7 @@ def xtime(num):
     return num
 
 
+
 ### Key expansion ###
 
 def nextRoundKey(key, roundi=1):
@@ -100,8 +103,6 @@ def nextRoundKey(key, roundi=1):
     nextKey[1] = col1
     col2 = colAdd(col1, keyCopy[2])
     nextKey[2] = col2
-    #print(keyCopy)
-    #print(col2)
     keyCopy = key.transpose()
     col3 = colAdd(col2, keyCopy[3])
     nextKey[3] = col3
@@ -118,6 +119,7 @@ def subWord(word):
     for i in range(len(word)):
         word[i] = subByte(word[i])
     return word
+
 
 
 ### State transformations ###
@@ -167,60 +169,50 @@ def rotateRow(row, n):
         row = rotWord(row)
     return row
 
-
-
-
 def colAdd(col1, col2):
-    newcol = col1
     for i in range(0, len(col1)):
-        newcol[i] = col1[i] ^ col2[i]
-    return newcol
+        col1[i] ^= col2[i]
+    return col1
 
 
 
+### Cipher ###
 
-
-
-
-
-
-
-
-def mixTest():
+def cipher(inp, k):
+    # 1d to 2d
     state = np.zeros([4, 4], dtype=np.int8)
-    state[0][0] = 0x00
-    state[0][1] = 0x01
-    state[0][2] = 0x02
-    state[0][3] = 0x03
-    state[1][0] = 0x04
-    state[1][1] = 0x05
-    state[1][2] = 0x06
-    state[1][3] = 0x07
-    state[2][0] = 0x08
-    state[2][1] = 0x09
-    state[2][2] = 0x0a
-    state[2][3] = 0x0b
-    state[3][0] = 0x0c
-    state[3][1] = 0x0d
-    state[3][2] = 0x0e
-    state[3][3] = 0x0f
-    print(state)
-    print()
-    state = mixColumns(state)
-    print(state)
-    print()
-    state = mixColumns(state)
-    print(state)
-    print()
-    state = mixColumns(state)
-    print(state)
-    print()
-    state = mixColumns(state)
-    print(state)
-    print()
-    state = mixColumns(state)
-    print(state)
-    print()
+    for i in range(4):
+        for j in range(4):
+            state[i][j] = inp[i*4 + j]
+    state = state.transpose()
 
+    key = np.zeros([4, 4], dtype=np.int8)
+    for i in range(4):
+        for j in range(4):
+            key[i][j] = k[i*4 + j]
+    key = key.transpose()
 
-#mixTest()
+    # Initial round
+    state = addRoundKey(state, key)
+
+    # Main rounds
+    for i in range(9):
+        state = subBytes(state)
+        state = shiftRows(state)
+        state = mixColumns(state)
+        key = nextRoundKey(key, i+1)
+        state = addRoundKey(state, key)
+
+    # Final round
+    state = subBytes(state)
+    state = shiftRows(state)
+    key = nextRoundKey(key, 10)
+    state = addRoundKey(state, key)
+
+    # Final state to 1d array
+    state = state.transpose()
+    output = np.zeros(16, dtype=np.int8)
+    for i in range(4):
+        for j in range(4):
+            output[i*4 + j] = state[i][j]
+    return output
