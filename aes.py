@@ -278,6 +278,21 @@ def colAdd(col1, col2):
         col1[i] ^= col2[i]
     return col1
 
+def getRoundKey(expandedKey, n):
+    key = np.zeros([4, 4], dtype=np.int8)
+    for i in range(4):
+        word = expandedKey[(n * 4) + i]
+        #print(hex(word))
+        for j in range(4):
+            byte = word << (j*8)
+            mask = 0xff000000
+            byte &= mask
+            byte >>= 24
+            byte &= 0xff
+            key[j][i] = byte
+            #print(hex(byte))
+    return key
+
 
 
 ### Cipher ###
@@ -289,29 +304,29 @@ def cipher(inp, k):
         for j in range(4):
             state[i][j] = inp[i*4 + j]
     state = state.transpose()
-
-    key = np.zeros([4, 4], dtype=np.int8)
-    for i in range(4):
-        for j in range(4):
-            key[i][j] = k[i*4 + j]
-    key = key.transpose()
+    
+    expandedKey = expandKey(k)
+    numMainRounds = int(len(expandedKey) / 4) - 2
+    roundNum = 0
 
     # Initial round
-    state = addRoundKey(state, key)
+    state = addRoundKey(state, getRoundKey(expandedKey, roundNum))
+    roundNum += 1
 
     # Main rounds
-    for i in range(9):
+    for _ in range(numMainRounds):
         state = subBytes(state)
         state = shiftRows(state)
         state = mixColumns(state)
-        key = nextRoundKey(key, i+1)
-        state = addRoundKey(state, key)
+        state = addRoundKey(state, getRoundKey(expandedKey, roundNum))
+        roundNum += 1
 
     # Final round
     state = subBytes(state)
     state = shiftRows(state)
-    key = nextRoundKey(key, 10)
-    state = addRoundKey(state, key)
+    state = addRoundKey(state, getRoundKey(expandedKey, roundNum))
+    roundNum += 1
+    print(roundNum)
 
     # Final state to 1d array
     state = state.transpose()
@@ -329,35 +344,26 @@ def invCipher(inp, k):
             state[i][j] = inp[i*4 + j]
     state = state.transpose()
 
-    key = np.zeros([4, 4], dtype=np.int8)
-    for i in range(4):
-        for j in range(4):
-            key[i][j] = k[i*4 + j]
-    key = key.transpose()
-
-    keys = []
-    keys.append(key)
-    for i in range(10):
-        key = nextRoundKey(key, i+1)
-        keys.append(key)
-
-    key = keys[10]
+    expandedKey = expandKey(k)
+    numMainRounds = int(len(expandedKey) / 4) - 2
+    roundNum = numMainRounds + 1
 
     # Initial round
-    state = addRoundKey(state, key)
+    state = addRoundKey(state, getRoundKey(expandedKey, roundNum))
+    roundNum -= 1
 
     # Main rounds
-    for i in range(9, 0, -1):
+    for _ in range(numMainRounds):
         state = invShiftRows(state)
         state = invSubBytes(state)
-        key = keys[i]
-        state = addRoundKey(state, key)
+        state = addRoundKey(state, getRoundKey(expandedKey, roundNum))
+        roundNum -= 1
         state = invMixColumns(state)
 
     # Final round
     state = invShiftRows(state)
     state = invSubBytes(state)
-    state = addRoundKey(state, keys[0])
+    state = addRoundKey(state, getRoundKey(expandedKey, roundNum))
 
     # Final state to 1d array
     state = state.transpose()
