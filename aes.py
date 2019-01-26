@@ -155,14 +155,39 @@ def mixColumns(state):
         result[i] = newcol
     return result.transpose()
 
+def invSubBytes(state):
+    result = state.copy()
+    for i in range(4):
+        for j in range(4):
+            result[i][j] = subByte(result[i][j], sbox=InvSbox)
+    return result
+
+def invShiftRows(state):
+    result = state.copy()
+    result[1] = rotateRow(result[1], 3)
+    result[2] = rotateRow(result[2], 2)
+    result[3] = rotateRow(result[3], 1)
+    return result
+
+def invMixColumns(state):
+    result = np.zeros([4, 4], dtype=np.int8)
+    for i, col in enumerate(state.transpose()):
+        newcol = np.zeros(4, dtype=np.int8)
+        newcol[0] = ffMultiply(0x0e, col[0]) ^ ffMultiply(0x0b, col[1]) ^ ffMultiply(0x0d, col[2]) ^ ffMultiply(0x09, col[3])
+        newcol[1] = ffMultiply(0x09, col[0]) ^ ffMultiply(0x0e, col[1]) ^ ffMultiply(0x0b, col[2]) ^ ffMultiply(0x0d, col[3])
+        newcol[2] = ffMultiply(0x0d, col[0]) ^ ffMultiply(0x09, col[1]) ^ ffMultiply(0x0e, col[2]) ^ ffMultiply(0x0b, col[3])
+        newcol[3] = ffMultiply(0x0b, col[0]) ^ ffMultiply(0x0d, col[1]) ^ ffMultiply(0x09, col[2]) ^ ffMultiply(0x0e, col[3])
+        result[i] = newcol
+    return result.transpose()
+
 
 
 ### Helper functions ###
 
-def subByte(byte):
+def subByte(byte, sbox=Sbox):
     left = (byte >> 4) & 0x0f
     right = byte & 0x0f
-    return Sbox[left][right]
+    return sbox[left][right]
 
 def rotateRow(row, n):
     for i in range(n):
@@ -208,6 +233,52 @@ def cipher(inp, k):
     state = shiftRows(state)
     key = nextRoundKey(key, 10)
     state = addRoundKey(state, key)
+
+    # Final state to 1d array
+    state = state.transpose()
+    output = np.zeros(16, dtype=np.int8)
+    for i in range(4):
+        for j in range(4):
+            output[i*4 + j] = state[i][j]
+    return output
+
+def invCipher(inp, k):
+    # 1d to 2d
+    state = np.zeros([4, 4], dtype=np.int8)
+    for i in range(4):
+        for j in range(4):
+            state[i][j] = inp[i*4 + j]
+    state = state.transpose()
+
+    key = np.zeros([4, 4], dtype=np.int8)
+    for i in range(4):
+        for j in range(4):
+            key[i][j] = k[i*4 + j]
+    key = key.transpose()
+
+    keys = []
+    keys.append(key)
+    for i in range(10):
+        key = nextRoundKey(key, i+1)
+        keys.append(key)
+
+    key = keys[10]
+
+    # Initial round
+    state = addRoundKey(state, key)
+
+    # Main rounds
+    for i in range(9, 0, -1):
+        state = invShiftRows(state)
+        state = invSubBytes(state)
+        key = keys[i]
+        state = addRoundKey(state, key)
+        state = invMixColumns(state)
+
+    # Final round
+    state = invShiftRows(state)
+    state = invSubBytes(state)
+    state = addRoundKey(state, keys[0])
 
     # Final state to 1d array
     state = state.transpose()

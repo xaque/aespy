@@ -233,3 +233,6 @@ result = np.array([0x39, 0x25, 0x84, 0x1d,
 
 output = aes.cipher(in1, key)
 assert((output == result).all())
+
+deoutput = aes.invCipher(output, key)
+assert((deoutput == in1).all())
